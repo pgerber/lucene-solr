@@ -25,6 +25,8 @@ import java.nio.file.Path;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.FileTime;
 
+import org.apache.lucene.store.FileIdentity;
+
 /**
  * <p>Implements {@link LockFactory} using {@link
  * Files#createFile}.</p>
@@ -86,19 +88,19 @@ public final class SimpleFSLockFactory extends FSLockFactory {
     }
     
     // used as a best-effort check, to see if the underlying file has changed
-    final FileTime creationTime = Files.readAttributes(lockFile, BasicFileAttributes.class).creationTime();
-    
-    return new SimpleFSLock(lockFile, creationTime);
+    FileIdentity identity = new FileIdentity(lockFile);
+
+    return new SimpleFSLock(lockFile, identity);
   }
   
   static final class SimpleFSLock extends Lock {
     private final Path path;
-    private final FileTime creationTime;
+    private final FileIdentity identity;
     private volatile boolean closed;
 
-    SimpleFSLock(Path path, FileTime creationTime) throws IOException {
+    SimpleFSLock(Path path, FileIdentity identity) throws IOException {
       this.path = path;
-      this.creationTime = creationTime;
+      this.identity = identity;
     }
 
     @Override
@@ -109,9 +111,9 @@ public final class SimpleFSLockFactory extends FSLockFactory {
       // try to validate the backing file name, that it still exists,
       // and has the same creation time as when we obtained the lock. 
       // if it differs, someone deleted our lock file (and we are ineffective)
-      FileTime ctime = Files.readAttributes(path, BasicFileAttributes.class).creationTime(); 
-      if (!creationTime.equals(ctime)) {
-        throw new AlreadyClosedException("Underlying file changed by an external force at " + ctime + ", (lock=" + this + ")");
+      FileIdentity identity = new FileIdentity(path);
+      if (!this.identity.isSameIdentity(identity)) {
+        throw new AlreadyClosedException("Underlying file changed by an external force: " + identity + ", (lock=" + this + ")");
       }
     }
 
@@ -144,7 +146,7 @@ public final class SimpleFSLockFactory extends FSLockFactory {
 
     @Override
     public String toString() {
-      return "SimpleFSLock(path=" + path + ",creationTime=" + creationTime + ")";
+      return "SimpleFSLock(path=" + path + ",identity=" + identity + ")";
     }
   }
 }

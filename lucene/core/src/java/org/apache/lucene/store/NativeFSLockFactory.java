@@ -29,6 +29,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 
+import org.apache.lucene.store.FileIdentity;
 import org.apache.lucene.util.IOUtils;
 
 /**
@@ -116,7 +117,7 @@ public final class NativeFSLockFactory extends FSLockFactory {
     }
     
     // used as a best-effort check, to see if the underlying file has changed
-    final FileTime creationTime = Files.readAttributes(realPath, BasicFileAttributes.class).creationTime();
+    final FileIdentity identity = new FileIdentity(realPath);
     
     if (LOCK_HELD.add(realPath.toString())) {
       FileChannel channel = null;
@@ -125,7 +126,7 @@ public final class NativeFSLockFactory extends FSLockFactory {
         channel = FileChannel.open(realPath, StandardOpenOption.CREATE, StandardOpenOption.WRITE);
         lock = channel.tryLock();
         if (lock != null) {
-          return new NativeFSLock(lock, channel, realPath, creationTime);
+          return new NativeFSLock(lock, channel, realPath, identity);
         } else {
           throw new LockObtainFailedException("Lock held by another program: " + realPath);
         }
@@ -154,14 +155,14 @@ public final class NativeFSLockFactory extends FSLockFactory {
     final FileLock lock;
     final FileChannel channel;
     final Path path;
-    final FileTime creationTime;
+    final FileIdentity identity;
     volatile boolean closed;
     
-    NativeFSLock(FileLock lock, FileChannel channel, Path path, FileTime creationTime) {
+    NativeFSLock(FileLock lock, FileChannel channel, Path path, FileIdentity identity) {
       this.lock = lock;
       this.channel = channel;
       this.path = path;
-      this.creationTime = creationTime;
+      this.identity = identity;
     }
 
     @Override
@@ -186,9 +187,9 @@ public final class NativeFSLockFactory extends FSLockFactory {
       // try to validate the backing file name, that it still exists,
       // and has the same creation time as when we obtained the lock. 
       // if it differs, someone deleted our lock file (and we are ineffective)
-      FileTime ctime = Files.readAttributes(path, BasicFileAttributes.class).creationTime(); 
-      if (!creationTime.equals(ctime)) {
-        throw new AlreadyClosedException("Underlying file changed by an external force at " + ctime + ", (lock=" + this + ")");
+      FileIdentity identity = new FileIdentity(path);
+      if (!this.identity.isSameIdentity(identity)) {
+        throw new AlreadyClosedException("Underlying file changed by an external force: " + identity + ", (lock=" + this + ")");
       }
     }
 
@@ -211,7 +212,7 @@ public final class NativeFSLockFactory extends FSLockFactory {
 
     @Override
     public String toString() {
-      return "NativeFSLock(path=" + path + ",impl=" + lock + ",creationTime=" + creationTime + ")"; 
+      return "NativeFSLock(path=" + path + ",impl=" + lock + ",identity=" + identity + ")";
     }
   }
 }
