@@ -88,7 +88,7 @@ public final class SimpleFSLockFactory extends FSLockFactory {
     }
     
     // used as a best-effort check, to see if the underlying file has changed
-    FileID fileID = new FileID(lockFile);
+    final FileID fileID = new FileID(lockFile);
 
     return new SimpleFSLock(lockFile, fileID);
   }

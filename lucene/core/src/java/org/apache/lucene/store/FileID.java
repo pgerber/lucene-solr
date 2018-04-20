@@ -41,19 +41,20 @@ import java.nio.file.Path;
  * </ul>
  */
 public class FileID {
-    FileTime creationTime = null;
-    Object fileKey = null;
+    private final FileTime creationTime;
+    private final Object fileKey;
 
     public FileID(Path path) throws IOException {
         BasicFileAttributes attributes = Files.readAttributes(path, BasicFileAttributes.class);
         fileKey = attributes.fileKey();
-        if (fileKey == null) {
-            creationTime = attributes.creationTime();
-        }
+        creationTime = fileKey == null ? attributes.creationTime() : null;
     }
 
     public boolean isSameFileAs(FileID other) {
         if (this.fileKey != null) {
+            if (other.fileKey == null) {
+                return false;
+            }
             return this.fileKey.equals(other.fileKey);
         } else {
             return this.creationTime.equals(other.creationTime);
